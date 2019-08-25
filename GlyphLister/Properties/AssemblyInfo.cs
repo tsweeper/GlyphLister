@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("GlyphLister")]
-[assembly: AssemblyCopyright("Copyright ©  2019")]
+[assembly: AssemblyCopyright("https://github.com/tsweeper/GlyphLister")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

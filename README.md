@@ -6,15 +6,22 @@ Then put those value into `Custom Range(Dec)` or `Unicode Range(Hex)` filed of `
 
 ## Usage
 
-	GlyphLister.exe [Path][Fontfile] [/H]
+	GlyphLister.exe -p <path to the font> [-f d|h|c]
 
-	Available Switches:
-	/?	Show this help.
-	/H 	Show value in Hex (Decimal is defulat)
+	-p, --path      Required. Path to the font directory or complete path to the single font.
+
+	-f, --format    Set output format. <mode> can be d(ec), h(ex), c(har). default is dec.
+
+	--help          Display this help screen.
+
+	--version       Display version information.
+
 
 ## Example 
 
-	> GlyphLister.exe PathToTheFontFile
+	> GlyphLister.exe "PathToTheFontFile"
+
+	Found 1 font.
 
 	Font Name: Bowlby One
 	Total Glyphs: 288
@@ -25,4 +32,4 @@ Then put those value into `Custom Range(Dec)` or `Unicode Range(Hex)` filed of `
 
 - [X] Value as Decimal
 - [X] Value as Hexadecimal
-- [ ] Value as Character 
+- [X] Value as Character 

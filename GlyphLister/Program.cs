@@ -1,7 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Media;
 using System.IO;
+using System.Windows;
+using CommandLine;
+using CommandLine.Text;
 
 namespace GlyphLister
 {
@@ -12,46 +16,26 @@ namespace GlyphLister
         /// <para>Verify font information <see cref="https://fontdrop.info/"/></para>
         /// </summary>
         /// <param name="args">Directory or File path string, and switches</param>
-        /// <returns>0 for success, 1 for missing path</returns>
-        private static int Main(string[] args)
+        /// <returns>0 for success, 1 for error</returns>
+        [STAThread]
+        private static void Main(string[] args)
         {
-            // If there's no arguments, print error and help then quit.
-            if (args.Length == 0)
-            {
-                System.Console.WriteLine("\n\nPlease enter a path to the font file(s).");
-                System.Console.WriteLine("\nUsage: GlyphLister.exe path[font filename] [/H]");
-                System.Console.WriteLine("\n  /H      Return hex values\n\n");
-                return 1;
-            }
+            var parserResult = Parser.Default
+                .ParseArguments<Options>(args)
+                .WithParsed(options => RunCommand(options))
+                .WithNotParsed(errors => HandleError(errors));
+        }
 
-            // If there's only 1 argument and it was help, print help then quit.
-            if (args.Length == 1 && args[0] == "/?")
-            {
-                System.Console.WriteLine("\n\nUsage: GlyphLister.exe path[font filename] [/H]");
-                System.Console.WriteLine("\n  /H      Return hex values\n\n");
-                return 1;
-            }
+        private static int RunCommand(Options opts)
+        {
+            if (opts.Path == null) return 1;
+            
+            GetGlyphs(opts.Path, opts.Format);
+            return 0;
+        }
 
-            // Set up arguments
-            var path = args[0];
-            var option = args.Length >= 2 ? args[1] : string.Empty;
-
-            // If path was directory
-            if (Directory.Exists(path))
-            {
-                GetGlyphs(PathAddBackslash(path), option);
-                return 0;
-            }
-
-            // If path was filename
-            if (File.Exists(path))
-            {
-                GetGlyphs(path, option);
-                return 0;
-            }
-
-            // If path was invalid
-            Console.WriteLine("\nPath or font file does not exists...");
+        private static int HandleError(IEnumerable<Error> errs)
+        {
             return 1;
         }
 
@@ -63,12 +47,35 @@ namespace GlyphLister
         private static void GetGlyphs(string path, string option)
         {
             // Get fonts from path
+            var output = string.Empty;
             var families = Fonts.GetFontFamilies(path);
+
+            output += $"Found {families.Count} font";
+            if (families.Count > 1) output += "s.\n";
+            else output += ".\n";
+
+            var formatStr = "{0}";
+            
+            if (option == "d")
+            {
+                formatStr = "{0}";
+            }
+            else if (option == "h")
+            {
+                formatStr = "{0:x}";
+            }
+            else if (option == "c")
+            {
+                output += $"Current code page: {Console.OutputEncoding.CodePage}\n";
+                output += "!Warning! Characters may not display properly in console environment.\n";
+                formatStr = "{0}";
+            }
+
             foreach (var family in families)
             {
                 // There might be multiple typefaces exist based on styles(normal, oblique) and weights(normal, bold).
                 var typefaces = family.GetTypefaces();
-                Console.WriteLine("\n\nFont Name: {0}", family.FamilyNames.Values.ElementAt(0));
+                output += $"\nFont Name: {family.FamilyNames.Values.ElementAt(0)}\n";
                 
                 // However I will just grab first typeface only.
                 var typeface = typefaces.ElementAt(0); 
@@ -77,18 +84,80 @@ namespace GlyphLister
                 
                 var characterMap = glyph.CharacterToGlyphMap;
                 
-                Console.WriteLine("Total Glyphs: {0}\n", characterMap.Count);
+                output += $"Total Glyphs: {characterMap.Count}\n";
 
                 foreach (var kvp in characterMap)
                 {
-                    var formatStr = (option.ToUpper() == "/H") ? "{0:x}" : "{0}";
-                    Console.Write(formatStr, kvp.Key);
-                    if (kvp.Key != characterMap.Keys.Last()) Console.Write(",");
+                    if (option == "c")
+                        output += (char) kvp.Key;
+                    else
+                        output += string.Format(formatStr, kvp.Key);
+
+                    if (kvp.Key != characterMap.Keys.Last() && option != "c") output += ",";
+                }
+
+                output += "\n";
+            }
+            
+            Console.WriteLine(output);
+
+            if (families.Count == 0) return;
+            Clipboard.SetText(output, TextDataFormat.UnicodeText);
+            Console.WriteLine("Output copied to clipboard.");
+        }
+    }
+
+    public class Options
+    {
+        private string _path;
+        private string _format;
+
+        [Option('p', "path", Required = true, HelpText = "Path to the font directory or complete path to the single font.")]
+        public string Path
+        {
+            get => _path;
+            set
+            {
+                if (Directory.Exists(value) || File.Exists(value))
+                {
+                    value = System.IO.Path.GetFullPath(value);
+                    _path = (Directory.Exists(value)) ? PathAddBackslash(value) : value;
+                }
+                else
+                {
+                    _path = null;
+                    Console.WriteLine("Invalid path: {0}", value);
                 }
             }
-
-            Console.WriteLine("\n\n");
         }
+
+        [Option('f', "format", Required = false, HelpText = "Set output format. <mode> can be d(ec), h(ex), c(har). default is dec.")]
+        public string Format
+        {
+            get => _format;
+            set
+            {
+                switch (value.ToLower())
+                {
+                    case "d":
+                    case "dex":
+                        _format = "d";
+                        break;
+                    case "h":
+                    case "hex":
+                        _format = "h";
+                        break;
+                    case "c":
+                    case "char":
+                        _format = "c";
+                        break;
+                    default:
+                        _format = "d";
+                        break;
+                }
+            }
+        }
+
 
         /// <summary>
         /// Check path string and return ends with proper directory separator character.
@@ -96,13 +165,13 @@ namespace GlyphLister
         /// </summary>
         /// <param name="path">String value for directory path</param>
         /// <returns>Return path string ends with directory separator character</returns>
-        static string PathAddBackslash(string path)
+        public static string PathAddBackslash(string path)
         {
             // They're always one character but EndsWith is shorter than
             // array style access to last path character. Change this
             // if performance are a (measured) issue.
-            var separator1 = Path.DirectorySeparatorChar.ToString();
-            var separator2 = Path.AltDirectorySeparatorChar.ToString();
+            var separator1 = System.IO.Path.DirectorySeparatorChar.ToString();
+            var separator2 = System.IO.Path.AltDirectorySeparatorChar.ToString();
 
             // Trailing white spaces are always ignored but folders may have
             // leading spaces. It's unusual but it may happen. If it's an issue
